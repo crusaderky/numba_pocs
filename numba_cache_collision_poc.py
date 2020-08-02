@@ -1,3 +1,4 @@
+import concurrent.futures
 import multiprocessing
 import shutil
 from textwrap import dedent
@@ -39,16 +40,14 @@ def main():
     # 1 - cache miss
     # 1 - cache hit, created by the same process
     # 2 - cache miss
-    p = ctx.Process(target=run, args=(1, 1, 2))
-    p.start()
-    p.join()
+    with concurrent.futures.ProcessPoolExecutor(1, mp_context=ctx) as ex:
+        ex.submit(run, 1, 1, 2).result()
     # 1 - cache hit, created by another process
     # 1 - cache hit, created by another process
     # 2 - cache hit, created by another process
     # 3 - cache miss
-    p = ctx.Process(target=run, args=(1, 1, 2, 3))
-    p.start()
-    p.join()
+    with concurrent.futures.ProcessPoolExecutor(1, mp_context=ctx) as ex:
+        ex.submit(run, 1, 1, 2, 3).result()
 
 
 if __name__ == "__main__":
