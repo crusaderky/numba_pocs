@@ -1,14 +1,26 @@
 import hashlib
+import linecache
 import pickle
+import sys
+import types
+
 import numba.core.caching
 
 
 def exec_with_numba_cache(source: str) -> dict:
     source_stamp = hashlib.sha1(source.encode("utf-8")).hexdigest()
     globals_ = {"_exec_source_stamp": source_stamp}
-    fname = f"<{source_stamp}>"
-    code = compile(source, filename=fname, mode="exec", dont_inherit=True)
-    exec(code, globals_)
+    modname = "_" + source_stamp
+    fname = f"_{source_stamp}.py"
+    sys.modules[modname] = types.ModuleType(modname)
+    # (size, mtime, lines, fullname)
+    linecache.cache[fname] = len(source), None, source.splitlines(), fname
+    try:
+        code = compile(source, filename=fname, mode="exec", dont_inherit=True)
+        exec(code, globals_)
+    finally:
+        del sys.modules[modname]
+        del linecache.cache[fname]
     del globals_["_exec_source_stamp"]
     return globals_
 
@@ -36,7 +48,7 @@ class _ExecCacheLocator(numba.core.caching._CacheLocator):
 
         # Avoid this code path:
         # https://github.com/numba/numba/blob/ccdf61381cc543afda76a80ef4c51e613472e1f7/numba/core/funcdesc.py#L152-L157  # noqa: E501
-        py_func.__module__ = "__main__"
+        py_func.__module__ = "_" + source_stamp
 
         # Create a unique hash of the function, in case of multiple functions with the
         # same name are in the same source code. It will be appended to the file names.
